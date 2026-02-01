@@ -423,8 +423,25 @@ def loadExpensesFromStorage():
 def saveExpensesToStorage():
     """Save expenses to persistent JSON storage"""
     try:
+        # Custom JSON encoder to handle date objects
+        class DateTimeEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if hasattr(obj, 'isoformat'):
+                    return obj.isoformat()
+                return super().default(obj)
+        
+        # Ensure all dates are strings before saving
+        clean_expenses = []
+        for expense in st.session_state.expenses:
+            clean_expense = expense.copy()
+            if isinstance(clean_expense.get('date'), str):
+                pass  # Already a string
+            else:
+                clean_expense['date'] = str(clean_expense.get('date', ''))
+            clean_expenses.append(clean_expense)
+        
         with open(STORAGE_FILE, 'w') as f:
-            json.dump(st.session_state.expenses, f, indent=2)
+            json.dump(clean_expenses, f, indent=2, cls=DateTimeEncoder)
         return True
     except Exception as e:
         st.error(f"Error saving expenses: {str(e)}")
@@ -442,12 +459,18 @@ def addExpense(description, amount, category, date, notes=""):
     except ValueError:
         return False, "Invalid amount format"
     
+    # Convert date to string if it's a date object
+    if hasattr(date, 'strftime'):
+        date_str = date.strftime("%Y-%m-%d")
+    else:
+        date_str = str(date)
+    
     expense = {
         'id': len(st.session_state.expenses) + 1,
         'description': description,
         'amount': amount_float,
         'category': category,
-        'date': date.strftime("%Y-%m-%d") if isinstance(date, datetime) else date,
+        'date': date_str,
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'notes': notes
     }
